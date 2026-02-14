@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import init_db
-from app.routes import debug
+from app.routes import challenges, debug, tracks
 
 
 @asynccontextmanager
@@ -33,6 +33,8 @@ app.add_middleware(
 
 # Register routers
 app.include_router(debug.router)
+app.include_router(challenges.router)
+app.include_router(tracks.router)
 
 
 @app.get("/")
