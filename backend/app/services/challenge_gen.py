@@ -13,12 +13,15 @@ from app.prompts.challenge_prompts import (
     TRACK_DISPLAY_NAMES,
     get_track_topics,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.services.ai_engine import (
     OllamaClient,
     OllamaConnectionError,
     OllamaJSONError,
     ollama_client,
 )
+from app.services.difficulty import adaptive_difficulty
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +148,37 @@ class ChallengeGenerator:
             "difficulty": challenge.difficulty,
             "estimated_minutes": challenge.estimated_minutes,
         }
+
+    async def generate_adaptive(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        track_id: int,
+        track_slug: str,
+        challenge_type: str | None = None,
+        specific_topic: str | None = None,
+        weak_topics: list[str] | None = None,
+        user_level: int = 1,
+        total_completed: int = 0,
+    ) -> dict[str, Any]:
+        """
+        Generate a challenge with adaptive difficulty.
+
+        Uses the AdaptiveDifficulty engine to determine the appropriate
+        difficulty level based on the user's recent performance.
+        """
+        difficulty = await adaptive_difficulty.get_next_difficulty(
+            db, user_id, track_id
+        )
+        return await self.generate(
+            track_slug=track_slug,
+            challenge_type=challenge_type,
+            difficulty=difficulty,
+            specific_topic=specific_topic,
+            weak_topics=weak_topics,
+            user_level=user_level,
+            total_completed=total_completed,
+        )
 
     def _select_difficulty(self, user_level: int) -> int:
         """Select difficulty weighted toward user's level."""

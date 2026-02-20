@@ -1,6 +1,7 @@
 """Challenge routes for the API."""
 
 import json
+import logging
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -21,6 +22,8 @@ from app.schemas.challenge import (
 )
 from app.services.challenge_gen import challenge_generator
 from app.services.evaluator import calculate_xp, challenge_evaluator
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/challenges", tags=["challenges"])
 
@@ -49,7 +52,6 @@ async def update_streak() -> int:
         streak = result.scalar_one_or_none()
 
         if not streak:
-            # Create new streak
             streak = Streak(
                 user_id=DEFAULT_USER_ID,
                 current_streak=1,
@@ -62,13 +64,11 @@ async def update_streak() -> int:
                 if streak.last_activity_date == today:
                     pass  # Already active today
                 elif streak.last_activity_date == today - timedelta(days=1):
-                    # Continue streak
                     streak.current_streak += 1
                     streak.last_activity_date = today
                     if streak.current_streak > streak.longest_streak:
                         streak.longest_streak = streak.current_streak
                 else:
-                    # Streak broken
                     streak.current_streak = 1
                     streak.last_activity_date = today
             else:
@@ -100,7 +100,6 @@ async def update_progress(track_id: int, xp_earned: int, is_correct: bool) -> di
                 challenges_correct=1 if is_correct else 0,
             )
             session.add(progress)
-            new_level = 1
         else:
             progress.xp += xp_earned
             progress.challenges_completed += 1
@@ -130,58 +129,82 @@ def parse_json_field(json_str: str) -> Any:
 async def get_daily_challenges(count: int = Query(default=3, ge=1, le=5)):
     """
     Get today's daily challenges.
-    Mixes challenges across all tracks.
+    Returns existing challenges if already generated today;
+    otherwise generates new ones across tracks.
+    Falls back to seed challenges if AI generation fails.
     """
     async with async_session_maker() as session:
+        today = date.today()
+        today_start = datetime.combine(today, datetime.min.time())
+
+        # Check if we already generated challenges today
+        existing_result = await session.execute(
+            select(Challenge)
+            .where(Challenge.created_at >= today_start)
+            .order_by(Challenge.id)
+            .limit(count)
+        )
+        existing = existing_result.scalars().all()
+
+        if len(existing) >= count:
+            return DailyChallengesResponse(
+                challenges=[_challenge_to_response(c) for c in existing[:count]],
+                total_count=len(existing[:count]),
+            )
+
         # Get all tracks
         result = await session.execute(select(Track))
         tracks = result.scalars().all()
 
         if not tracks:
-            raise HTTPException(status_code=404, detail="No tracks found")
+            raise HTTPException(status_code=404, detail="No tracks found. Run seed_tracks first.")
 
-        # For now, generate new challenges on the fly
-        # Later, could cache daily challenges in DB
-        challenges = []
+        # Start with any already-generated today
+        challenges = list(existing)
+        needed = count - len(challenges)
 
-        # Distribute challenges across tracks
-        challenges_per_track = max(1, count // len(tracks))
-        remaining = count
+        # Distribute remaining across tracks
+        track_cycle = iter(tracks * (needed // len(tracks) + 1))
 
-        for track in tracks:
-            if remaining <= 0:
-                break
+        for _ in range(needed):
+            track = next(track_cycle)
+            try:
+                generated = await challenge_generator.generate(
+                    track_slug=track.slug,
+                )
 
-            num = min(challenges_per_track, remaining)
-            remaining -= num
-
-            for _ in range(num):
-                try:
-                    generated = await challenge_generator.generate(
-                        track_slug=track.slug,
+                challenge = Challenge(
+                    track_id=track.id,
+                    type=generated["type"],
+                    difficulty=generated["difficulty"],
+                    title=generated["title"],
+                    description=generated["description"],
+                    hints=generated["hints"],
+                    solution=generated["solution"],
+                    test_cases=generated["test_cases"],
+                    topics=generated["topics_covered"],
+                )
+                session.add(challenge)
+                await session.flush()
+                await session.refresh(challenge)
+                challenges.append(challenge)
+            except Exception as e:
+                logger.warning(f"AI generation failed, using seed fallback: {e}")
+                # Fallback: grab an existing challenge from this track not used today
+                fallback_result = await session.execute(
+                    select(Challenge)
+                    .where(
+                        Challenge.track_id == track.id,
+                        Challenge.created_at < today_start,
                     )
+                    .order_by(func.random())
+                    .limit(1)
+                )
+                fallback = fallback_result.scalar_one_or_none()
+                if fallback:
+                    challenges.append(fallback)
 
-                    # Create challenge in DB
-                    challenge = Challenge(
-                        track_id=track.id,
-                        type=generated["type"],
-                        difficulty=generated["difficulty"],
-                        title=generated["title"],
-                        description=generated["description"],
-                        hints=generated["hints"],
-                        solution=generated["solution"],
-                        test_cases=generated["test_cases"],
-                        topics_covered=generated["topics_covered"],
-                    )
-                    session.add(challenge)
-                    await session.commit()
-                    await session.refresh(challenge)
-
-                    challenges.append(challenge)
-                except Exception as e:
-                    # Skip if generation fails
-                    print(f"Failed to generate challenge: {e}")
-                    continue
+        await session.commit()
 
         return DailyChallengesResponse(
             challenges=[_challenge_to_response(c) for c in challenges],
@@ -200,10 +223,62 @@ def _challenge_to_response(challenge: Challenge) -> ChallengeResponse:
         description=challenge.description,
         hints=parse_json_field(challenge.hints),
         test_cases=parse_json_field(challenge.test_cases),
-        topics_covered=parse_json_field(challenge.topics_covered),
+        topics_covered=parse_json_field(challenge.topics),
         estimated_minutes=challenge.difficulty * 5 + 5,
     )
 
+
+# --- Static path routes BEFORE dynamic /{challenge_id} ---
+
+@router.get("/history", response_model=ChallengeHistoryResponse)
+async def get_history(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, ge=1, le=50),
+):
+    """Get challenge completion history."""
+    async with async_session_maker() as session:
+        offset = (page - 1) * page_size
+
+        count_result = await session.execute(
+            select(func.count()).select_from(UserChallenge)
+        )
+        total_count = count_result.scalar()
+
+        result = await session.execute(
+            select(UserChallenge, Challenge, Track)
+            .join(Challenge, UserChallenge.challenge_id == Challenge.id)
+            .join(Track, Challenge.track_id == Track.id)
+            .order_by(desc(UserChallenge.completed_at))
+            .offset(offset)
+            .limit(page_size)
+        )
+
+        rows = result.all()
+
+        history_items = [
+            ChallengeHistoryItem(
+                id=uc.id,
+                challenge_id=uc.challenge_id,
+                challenge_title=ch.title,
+                challenge_type=ch.type,
+                track_name=tr.name,
+                track_icon=tr.icon,
+                is_correct=bool(uc.is_correct),
+                xp_earned=uc.xp_earned,
+                completed_at=uc.completed_at.isoformat(),
+            )
+            for uc, ch, tr in rows
+        ]
+
+        return ChallengeHistoryResponse(
+            challenges=history_items,
+            total_count=total_count,
+            page=page,
+            page_size=page_size,
+        )
+
+
+# --- Dynamic path routes ---
 
 @router.get("/{challenge_id}", response_model=ChallengeResponse)
 async def get_challenge(challenge_id: int):
@@ -227,7 +302,6 @@ async def submit_answer(
 ):
     """Submit an answer to a challenge and get evaluation."""
     async with async_session_maker() as session:
-        # Get challenge
         result = await session.execute(
             select(Challenge).where(Challenge.id == challenge_id)
         )
@@ -239,7 +313,7 @@ async def submit_answer(
         # Get current streak
         current_streak = await get_user_streak()
 
-        # Evaluate answer
+        # Evaluate answer via AI
         try:
             evaluation = await challenge_evaluator.evaluate(
                 challenge_title=challenge.title,
@@ -250,7 +324,6 @@ async def submit_answer(
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Evaluation failed: {str(e)}")
 
-        # Calculate XP
         xp_earned = calculate_xp(
             difficulty=challenge.difficulty,
             correctness_pct=evaluation["correctness_pct"],
@@ -260,7 +333,6 @@ async def submit_answer(
 
         is_correct = evaluation["correctness_pct"] >= 70
 
-        # Record completion
         user_challenge = UserChallenge(
             user_id=DEFAULT_USER_ID,
             challenge_id=challenge_id,
@@ -272,10 +344,7 @@ async def submit_answer(
         )
         session.add(user_challenge)
 
-        # Update streak
         new_streak = await update_streak()
-
-        # Update progress
         progress_info = await update_progress(challenge.track_id, xp_earned, is_correct)
 
         await session.commit()
@@ -323,54 +392,4 @@ async def get_hint(
             hint_number=next_hint_num,
             hint=hints[next_hint_num - 1],
             hints_remaining=3 - next_hint_num,
-        )
-
-
-@router.get("/history", response_model=ChallengeHistoryResponse)
-async def get_history(
-    page: int = Query(default=1, ge=1),
-    page_size: int = Query(default=10, ge=1, le=50),
-):
-    """Get challenge completion history."""
-    async with async_session_maker() as session:
-        offset = (page - 1) * page_size
-
-        # Get total count
-        count_result = await session.execute(
-            select(func.count()).select_from(UserChallenge)
-        )
-        total_count = count_result.scalar()
-
-        # Get history with challenge and track info
-        result = await session.execute(
-            select(UserChallenge, Challenge, Track)
-            .join(Challenge, UserChallenge.challenge_id == Challenge.id)
-            .join(Track, Challenge.track_id == Track.id)
-            .order_by(desc(UserChallenge.completed_at))
-            .offset(offset)
-            .limit(page_size)
-        )
-
-        rows = result.all()
-
-        history_items = [
-            ChallengeHistoryItem(
-                id=uc.id,
-                challenge_id=uc.challenge_id,
-                challenge_title=ch.title,
-                challenge_type=ch.type,
-                track_name=tr.name,
-                track_icon=tr.icon,
-                is_correct=bool(uc.is_correct),
-                xp_earned=uc.xp_earned,
-                completed_at=uc.completed_at.isoformat(),
-            )
-            for uc, ch, tr in rows
-        ]
-
-        return ChallengeHistoryResponse(
-            challenges=history_items,
-            total_count=total_count,
-            page=page,
-            page_size=page_size,
         )
