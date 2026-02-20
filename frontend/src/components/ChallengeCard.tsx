@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { CheckCircle2, Circle, Clock, XCircle } from "lucide-react";
 import { CHALLENGE_TYPES, TRACKS, type ChallengeType, type TrackSlug, difficultyStars } from "@/lib/constants";
@@ -41,6 +42,7 @@ export default function ChallengeCard({
   const estimatedMinutes = 5 + difficulty * 2;
 
   return (
+    <Link href={`/challenge/${id}`}>
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
@@ -107,5 +109,6 @@ export default function ChallengeCard({
         style={{ backgroundColor: trackData.color }}
       />
     </motion.div>
+    </Link>
   );
 }

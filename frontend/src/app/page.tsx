@@ -7,7 +7,7 @@ import StreakCounter from "@/components/StreakCounter";
 import ChallengeCard from "@/components/ChallengeCard";
 import XPBar from "@/components/XPBar";
 import { getGreeting, TRACKS, type TrackSlug } from "@/lib/constants";
-import type { DailyChallenge, ProgressOverview, WeeklyData } from "@/lib/api";
+import type { DailyChallenge, ChallengeDetail, ProgressOverview, WeeklyData } from "@/lib/api";
 
 // Demo data for first render (before backend is connected)
 const DEMO_CHALLENGES: DailyChallenge[] = [
@@ -185,7 +185,30 @@ export default function Dashboard() {
         ]);
         if (overviewData.status === "fulfilled") setOverview(overviewData.value);
         if (dailyData.status === "fulfilled" && dailyData.value.challenges.length > 0) {
-          setChallenges(dailyData.value.challenges);
+          // Map backend ChallengeDetail to dashboard DailyChallenge format
+          const trackMap: Record<number, { slug: string; name: string; icon: string; color: string }> = {
+            1: { slug: "python-advanced", name: "Python Advanced", icon: "🐍", color: "#22C55E" },
+            2: { slug: "java-deep-dive", name: "Java Deep Dive", icon: "☕", color: "#F97316" },
+            3: { slug: "automation-testing", name: "Automation & Testing", icon: "🤖", color: "#A855F7" },
+            4: { slug: "dsa-problem-solving", name: "DSA & Problem Solving", icon: "🧮", color: "#06B6D4" },
+          };
+          const mapped: DailyChallenge[] = dailyData.value.challenges.map((c: ChallengeDetail) => {
+            const t = trackMap[c.track_id] ?? { slug: "unknown", name: "Unknown", icon: "📘", color: "#64748B" };
+            return {
+              id: c.id,
+              track: t.slug,
+              track_name: t.name,
+              track_icon: t.icon,
+              track_color: t.color,
+              title: c.title,
+              type: c.type,
+              difficulty: c.difficulty,
+              completed: false,
+              is_correct: null,
+              xp_earned: null,
+            };
+          });
+          setChallenges(mapped);
         }
         if (weeklyData.status === "fulfilled") setWeekly(weeklyData.value);
       } catch {

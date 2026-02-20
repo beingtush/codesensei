@@ -22,7 +22,6 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
     "Content-Type": "application/json",
   };
 
-  // Token from localStorage (client-side only)
   if (typeof window !== "undefined") {
     const token = localStorage.getItem("codesensei_token");
     if (token) {
@@ -44,7 +43,6 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
   return res.json();
 }
 
-// Helper to get stored user_id
 function userId(): number {
   if (typeof window === "undefined") return 1;
   return Number(localStorage.getItem("codesensei_user_id") || "1");
@@ -67,23 +65,33 @@ export function register(username: string, email: string, password: string) {
 
 // --- Challenges ---
 export function getDailyChallenges() {
-  return apiFetch<{
-    date: string;
-    challenges: DailyChallenge[];
-    tracks?: TrackInfo[];
-    message?: string;
-  }>("/api/v1/challenges/daily", { params: { user_id: userId() } });
+  return apiFetch<DailyChallengesResponse>("/api/v1/challenges/daily");
 }
 
 export function getChallenge(id: number) {
   return apiFetch<ChallengeDetail>(`/api/v1/challenges/${id}`);
 }
 
-export function submitChallenge(id: number, answer: string, hintsUsed: number) {
-  return apiFetch<SubmissionResult>(`/api/v1/challenges/${id}/submit`, {
+export function submitChallenge(
+  id: number,
+  answer: string,
+  hintsUsed: number,
+  timeTakenSeconds: number,
+) {
+  return apiFetch<EvaluationResponse>(`/api/v1/challenges/${id}/submit`, {
     method: "POST",
-    params: { user_id: userId() },
-    body: { user_answer: answer, hints_used: hintsUsed },
+    body: {
+      user_answer: answer,
+      hints_used: hintsUsed,
+      time_taken_seconds: timeTakenSeconds,
+    },
+  });
+}
+
+export function getHint(challengeId: number, currentHint: number) {
+  return apiFetch<HintResponse>(`/api/v1/challenges/${challengeId}/hint`, {
+    params: { current_hint: currentHint },
+    method: "POST",
   });
 }
 
@@ -106,7 +114,55 @@ export function getWeekly() {
   });
 }
 
-// --- Types ---
+// --- Types matching backend schemas ---
+
+export interface TestCase {
+  input: string;
+  expected: string;
+}
+
+/** Matches backend ChallengeResponse schema */
+export interface ChallengeDetail {
+  id: number;
+  track_id: number;
+  type: string;
+  difficulty: number;
+  title: string;
+  description: string;
+  hints: string[];
+  test_cases: TestCase[];
+  topics_covered: string[];
+  estimated_minutes: number;
+}
+
+/** Matches backend DailyChallengesResponse */
+export interface DailyChallengesResponse {
+  challenges: ChallengeDetail[];
+  total_count: number;
+}
+
+/** Matches backend HintResponse */
+export interface HintResponse {
+  challenge_id: number;
+  hint_number: number;
+  hint: string;
+  hints_remaining: number;
+}
+
+/** Matches backend EvaluationResponse */
+export interface EvaluationResponse {
+  challenge_id: number;
+  is_correct: boolean;
+  correctness_pct: number;
+  feedback: string;
+  strengths: string[];
+  improvements: string[];
+  xp_earned: number;
+  new_streak: number | null;
+  new_level: number | null;
+}
+
+// Dashboard types (used by page.tsx with demo data)
 export interface DailyChallenge {
   id: number;
   track: string;
@@ -128,26 +184,6 @@ export interface TrackInfo {
   track_color: string;
   recommended_difficulty: number;
   user_level: number;
-}
-
-export interface ChallengeDetail {
-  id: number;
-  track: string;
-  track_name: string;
-  title: string;
-  type: string;
-  difficulty: number;
-  description: string;
-  hints_available: number;
-}
-
-export interface SubmissionResult {
-  is_correct: boolean;
-  xp_earned: number;
-  solution: string;
-  track_level: number;
-  track_xp: number;
-  current_streak: number;
 }
 
 export interface TrackProgress {
