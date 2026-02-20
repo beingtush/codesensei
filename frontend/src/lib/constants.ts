@@ -1,4 +1,5 @@
 // Track definitions and colors
+// Supports both frontend display slugs and backend slugs
 export const TRACKS = {
   "python-advanced": {
     name: "Python Advanced",
@@ -8,7 +9,39 @@ export const TRACKS = {
     border: "border-green-500/30",
     badge: "bg-green-500/15 text-green-400",
     ring: "ring-green-500/40",
+    editorLang: "python",
   },
+  "java-deep-dive": {
+    name: "Java Deep Dive",
+    icon: "☕",
+    color: "#F97316",
+    bgGlow: "from-orange-500/20 to-orange-500/0",
+    border: "border-orange-500/30",
+    badge: "bg-orange-500/15 text-orange-400",
+    ring: "ring-orange-500/40",
+    editorLang: "java",
+  },
+  "dsa-problem-solving": {
+    name: "DSA & Problem Solving",
+    icon: "🧮",
+    color: "#06B6D4",
+    bgGlow: "from-cyan-500/20 to-cyan-500/0",
+    border: "border-cyan-500/30",
+    badge: "bg-cyan-500/15 text-cyan-400",
+    ring: "ring-cyan-500/40",
+    editorLang: "python",
+  },
+  "automation-testing": {
+    name: "Automation & Testing",
+    icon: "🤖",
+    color: "#A855F7",
+    bgGlow: "from-purple-500/20 to-purple-500/0",
+    border: "border-purple-500/30",
+    badge: "bg-purple-500/15 text-purple-400",
+    ring: "ring-purple-500/40",
+    editorLang: "python",
+  },
+  // Legacy frontend slugs (map to same styles)
   "java-enterprise": {
     name: "Java Enterprise",
     icon: "☕",
@@ -17,6 +50,7 @@ export const TRACKS = {
     border: "border-orange-500/30",
     badge: "bg-orange-500/15 text-orange-400",
     ring: "ring-orange-500/40",
+    editorLang: "java",
   },
   "dsa-mastery": {
     name: "DSA Mastery",
@@ -26,6 +60,7 @@ export const TRACKS = {
     border: "border-cyan-500/30",
     badge: "bg-cyan-500/15 text-cyan-400",
     ring: "ring-cyan-500/40",
+    editorLang: "python",
   },
   "automation-devops": {
     name: "Automation & DevOps",
@@ -35,10 +70,25 @@ export const TRACKS = {
     border: "border-purple-500/30",
     badge: "bg-purple-500/15 text-purple-400",
     ring: "ring-purple-500/40",
+    editorLang: "python",
   },
 } as const;
 
 export type TrackSlug = keyof typeof TRACKS;
+
+// Look up track data by slug, with fallback
+export function getTrackData(slug: string) {
+  return TRACKS[slug as TrackSlug] ?? {
+    name: slug,
+    icon: "📘",
+    color: "#64748B",
+    bgGlow: "from-slate-500/20 to-slate-500/0",
+    border: "border-slate-500/30",
+    badge: "bg-slate-500/15 text-slate-400",
+    ring: "ring-slate-500/40",
+    editorLang: "python",
+  };
+}
 
 // Challenge type icons and labels
 export const CHALLENGE_TYPES = {
