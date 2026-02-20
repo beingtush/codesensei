@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: #0F172A;
+  --color-foreground: #E2E8F0;
+  --color-surface: #1E293B;
+  --color-surface-hover: #334155;
+  --color-muted: #94A3B8;
+  --color-accent: #FBBF24;
+  --color-track-python: #22C55E;
+  --color-track-java: #F97316;
+  --color-track-dsa: #06B6D4;
+  --color-track-devops: #A855F7;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 3px;
+}
+
+/* Fire animation keyframes */
+@keyframes fireGlow {
+  0%, 100% { filter: drop-shadow(0 0 6px rgba(251, 191, 36, 0.4)); }
+  50% { filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.7)); }
+}
+
+@keyframes fireFlicker {
+  0%, 100% { transform: scaleY(1) scaleX(1); }
+  25% { transform: scaleY(1.05) scaleX(0.97); }
+  50% { transform: scaleY(0.95) scaleX(1.03); }
+  75% { transform: scaleY(1.03) scaleX(0.98); }
+}
+
+.fire-glow {
+  animation: fireGlow 2s ease-in-out infinite;
+}
+
+.fire-flicker {
+  animation: fireFlicker 0.8s ease-in-out infinite;
+}
+
+/* XP bar shimmer */
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.xp-shimmer {
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
