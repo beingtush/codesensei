@@ -10,14 +10,10 @@ alembic>=1.13.0
 # Settings & Validation
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
+pydantic[email]>=2.5.0
 
-# AI - Ollama (local LLM)
-ollama>=0.1.0
+# HTTP client (for Ollama API)
 httpx>=0.26.0
-
-# Auth
-python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
 
 # Utilities
 python-dotenv>=1.0.0
