@@ -63,3 +63,33 @@ body {
   background-size: 200% 100%;
   animation: shimmer 2s linear infinite;
 }
+
+/* Confetti animation */
+@keyframes confettiFall {
+  0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+
+/* Count-up animation for scores */
+@keyframes countUp {
+  from { opacity: 0; transform: scale(0.5); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Level up pulse effect */
+@keyframes levelUpPulse {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 20px currentColor); }
+  50% { transform: scale(1.1); filter: drop-shadow(0 0 40px currentColor); }
+}
+
+.confetti-piece {
+  animation: confettiFall 3s ease-in-out forwards;
+}
+
+.count-up {
+  animation: countUp 0.6s ease-out forwards;
+}
+
+.level-up-pulse {
+  animation: levelUpPulse 1.5s ease-in-out infinite;
+}

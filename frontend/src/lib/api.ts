@@ -79,11 +79,18 @@ export function getChallenge(id: number) {
   return apiFetch<ChallengeDetail>(`/api/v1/challenges/${id}`);
 }
 
-export function submitChallenge(id: number, answer: string, hintsUsed: number) {
+export function submitChallenge(id: number, answer: string, hintsUsed: number, timeTakenSeconds: number) {
   return apiFetch<SubmissionResult>(`/api/v1/challenges/${id}/submit`, {
     method: "POST",
     params: { user_id: userId() },
-    body: { user_answer: answer, hints_used: hintsUsed },
+    body: { user_answer: answer, hints_used: hintsUsed, time_taken_seconds: timeTakenSeconds },
+  });
+}
+
+export function getHint(challengeId: number, currentHint: number) {
+  return apiFetch<HintResponse>(`/api/v1/challenges/${challengeId}/hint`, {
+    method: "POST",
+    params: { user_id: userId(), current_hint: currentHint },
   });
 }
 
@@ -130,8 +137,15 @@ export interface TrackInfo {
   user_level: number;
 }
 
+export interface TestCase {
+  input: string;
+  expected: string;
+  description?: string;
+}
+
 export interface ChallengeDetail {
   id: number;
+  track_id: number;
   track: string;
   track_name: string;
   title: string;
@@ -139,15 +153,31 @@ export interface ChallengeDetail {
   difficulty: number;
   description: string;
   hints_available: number;
+  hints: string[];
+  test_cases: TestCase[];
+  topics_covered: string[];
+  estimated_minutes: number;
 }
 
 export interface SubmissionResult {
   is_correct: boolean;
+  correctness_pct: number;
+  feedback: string;
+  strengths: string[];
+  improvements: string[];
   xp_earned: number;
+  new_streak: number | null;
+  new_level: number | null;
   solution: string;
   track_level: number;
   track_xp: number;
   current_streak: number;
+}
+
+export interface HintResponse {
+  hint_number: number;
+  hint: string;
+  hints_remaining: number;
 }
 
 export interface TrackProgress {
