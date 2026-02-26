@@ -117,6 +117,30 @@ export function getWeekly() {
   });
 }
 
+export function getTrackProgress(slug: string) {
+  return apiFetch<TrackDetailProgress>(`/api/v1/progress/track/${slug}`, {
+    params: { user_id: userId() },
+  });
+}
+
+// --- Tracks ---
+export function getTracks() {
+  return apiFetch<TrackWithUserProgress[]>("/api/v1/tracks");
+}
+
+export function getTrackChallenges(slug: string, page = 1, pageSize = 20) {
+  return apiFetch<TrackChallengesResponse>(`/api/v1/tracks/${slug}/challenges`, {
+    params: { page, page_size: pageSize },
+  });
+}
+
+// --- History ---
+export function getChallengeHistory(page = 1, pageSize = 10) {
+  return apiFetch<ChallengeHistoryResponse>("/api/v1/challenges/history", {
+    params: { page, page_size: pageSize },
+  });
+}
+
 // --- Types matching backend schemas ---
 
 export interface TestCase {
@@ -254,4 +278,91 @@ export interface WeeklyData {
     total_xp: number;
     active_days: number;
   };
+}
+
+/** Matches backend progress/track/{slug} response */
+export interface TrackDetailProgress {
+  track: string;
+  name: string;
+  icon: string;
+  level: number;
+  xp: number;
+  level_progress: {
+    level: number;
+    current_xp: number;
+    xp_in_level: number;
+    xp_for_next_level: number | null;
+    xp_remaining: number;
+    is_max_level: boolean;
+  };
+  challenges_completed: number;
+  challenges_correct: number;
+  accuracy: number;
+  weak_topics: string[];
+  recommended_difficulty: number;
+}
+
+/** Matches backend UserTrackProgress */
+export interface UserTrackProgressAPI {
+  level: number;
+  xp: number;
+  challenges_completed: number;
+  challenges_correct: number;
+  accuracy: number;
+}
+
+/** Matches backend TrackWithProgress */
+export interface TrackWithUserProgress {
+  id: number;
+  name: string;
+  slug: string;
+  description: string;
+  icon: string;
+  color_hex: string;
+  progress: UserTrackProgressAPI | null;
+}
+
+/** Matches backend track challenges response */
+export interface TrackChallengeItem {
+  id: number;
+  type: string;
+  difficulty: number;
+  title: string;
+  description: string;
+}
+
+export interface TrackChallengesResponse {
+  track: {
+    id: number;
+    name: string;
+    slug: string;
+    description: string;
+    icon: string;
+    color_hex: string;
+  };
+  challenges: TrackChallengeItem[];
+  total_count: number;
+  page: number;
+  page_size: number;
+}
+
+/** Matches backend ChallengeHistoryItem */
+export interface HistoryItem {
+  id: number;
+  challenge_id: number;
+  challenge_title: string;
+  challenge_type: string;
+  track_name: string;
+  track_icon: string;
+  is_correct: boolean;
+  xp_earned: number;
+  completed_at: string;
+}
+
+/** Matches backend ChallengeHistoryResponse */
+export interface ChallengeHistoryResponse {
+  challenges: HistoryItem[];
+  total_count: number;
+  page: number;
+  page_size: number;
 }
